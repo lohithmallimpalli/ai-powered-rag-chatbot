@@ -4,7 +4,7 @@ FROM python:3.12-slim
 # Environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PORT=8000 \
+    PORT=10000 \
     HF_HUB_OFFLINE=0 \
     ANONYMIZED_TELEMETRY=False
 
@@ -24,8 +24,6 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Pre-cache SentenceTransformers embedding model to avoid startup download delay
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
 
 # Copy application source code
 COPY . .
@@ -33,8 +31,6 @@ COPY . .
 # Expose server port
 EXPOSE 10000
 
-# Expose server port
-EXPOSE 10000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:10000/health', timeout=5)" 
