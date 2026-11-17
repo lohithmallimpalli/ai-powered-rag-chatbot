@@ -37,8 +37,6 @@ EXPOSE 10000
 EXPOSE 10000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD-SHELL curl -f http://localhost:10000/api/health || exit 1
-
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:10000/health', timeout=5)" 
 # Start production server
 CMD ["sh", "-c", "gunicorn app.main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:${PORT:-10000}"]
