@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocuIntel AI — Enterprise Document Intelligence & RAG Chatbot</title>
+  
+  <!-- Modern Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome / Icons & Marked.js for Markdown -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <!-- Application Stylesheet -->
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body class="dark-theme">
+  <div class="app-layout">
+    
+    <!-- ============================================================== -->
+    <!-- 1. LEFT SIDEBAR                                                -->
+    <!-- ============================================================== -->
+    <aside class="sidebar-left" id="sidebarLeft">
+      <!-- App Brand -->
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <i class="fa-solid fa-brain-circuit"></i>
+        </div>
+        <div class="brand-text">
+          <h2>DocuIntel <span class="accent-text">AI</span></h2>
+          <span class="brand-badge">RAG v1.0</span>
+        </div>
+      </div>
+
+      <!-- Action Button: New Chat -->
+      <div class="sidebar-action">
+        <button id="btnNewChat" class="btn btn-primary btn-block">
+          <i class="fa-solid fa-plus"></i> New Chat
+        </button>
+      </div>
+
+      <!-- Sidebar Navigation Menu -->
+      <nav class="sidebar-nav">
+        <div class="nav-section-title">NAVIGATION</div>
+        <button class="nav-item active" id="navChat">
+          <i class="fa-solid fa-comments"></i> <span>Chat & Inquire</span>
+        </button>
+        <button class="nav-item" id="navKnowledgeBase">
+          <i class="fa-solid fa-database"></i> <span>Knowledge Base</span>
+          <span class="badge" id="sidebarDocBadge">0</span>
+        </button>
+        <button class="nav-item" id="navUpload">
+          <i class="fa-solid fa-cloud-arrow-up"></i> <span>Upload Files</span>
+        </button>
+      </nav>
+
+      <!-- Active Sessions / Chat History -->
+      <div class="sidebar-history-section">
+        <div class="nav-section-title d-flex-between">
+          <span>CHAT SESSIONS</span>
+          <button id="btnClearAllHistory" class="btn-icon-subtle" title="Clear History">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </div>
+        <div class="chat-sessions-list" id="chatSessionsList">
+          <div class="session-item active" data-session="default">
+            <i class="fa-regular fa-message"></i>
+            <span class="session-title">Current Research</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Controls: Settings & About -->
+      <div class="sidebar-footer">
+        <div class="provider-pill" id="activeProviderPill" title="Active Model">
+          <span class="status-dot online"></span>
+          <span class="provider-label" id="sidebarProviderLabel">Gemini 1.5 Flash</span>
+        </div>
+        <div class="footer-buttons">
+          <button id="btnOpenSettings" class="btn-footer" title="API & System Settings">
+            <i class="fa-solid fa-gear"></i> Settings
+          </button>
+          <button id="btnOpenAbout" class="btn-footer" title="About System Architecture">
+            <i class="fa-solid fa-circle-info"></i> About
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============================================================== -->
+    <!-- 2. MAIN DASHBOARD / CHAT AREA                                  -->
+    <!-- ============================================================== -->
+    <main class="main-dashboard" id="mainDashboard">
+      
+      <!-- Top Header Bar -->
+      <header class="dashboard-header">
+        <div class="header-left">
+          <button id="btnToggleSidebar" class="btn-icon mobile-only" title="Toggle Sidebar">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <div class="header-title-group">
+            <h1>Document Intelligence Assistant</h1>
+            <p class="subtitle">Strictly grounded multi-document retrieval with citation tracking</p>
+          </div>
+        </div>
+        <div class="header-right">
+          <div class="header-stat-chip">
+            <i class="fa-solid fa-layer-group"></i>
+            <span>Indexed Chunks: <strong id="headerChunkCount">0</strong></span>
+          </div>
+          <button id="btnToggleRightPanel" class="btn-icon" title="Toggle Document Panel">
+            <i class="fa-solid fa-book-open"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- Quick Upload Dropzone Banner (Collapsible/Prominent) -->
+      <div class="upload-banner" id="uploadBanner">
+        <div class="dropzone-compact" id="dropzoneCompact">
+          <div class="dropzone-icon">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+          </div>
+          <div class="dropzone-content">
+            <h4>Drag & drop documents here or <span class="highlight-link">browse</span></h4>
+            <p>Supports <strong>PDF</strong>, <strong>DOCX</strong>, and <strong>TXT</strong> up to 25MB with automatic semantic chunking</p>
+          </div>
+          <input type="file" id="fileInput" accept=".pdf,.docx,.txt" multiple hidden>
+        </div>
+        <!-- Live Upload Progress Indicator -->
+        <div class="upload-progress-container hidden" id="uploadProgressContainer">
+          <div class="upload-progress-header">
+            <span id="uploadStatusText">Processing and indexing document...</span>
+            <span id="uploadProgressPercent">50%</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="uploadProgressBar"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Conversation Container -->
+      <div class="chat-viewport" id="chatViewport">
+        
+        <!-- Welcome Hero (Displayed when conversation is empty) -->
+        <div class="welcome-hero" id="welcomeHero">
+          <div class="hero-logo">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <h2>Welcome to DocuIntel RAG Platform</h2>
+          <p class="hero-description">
+            Ask precise questions across your corporate files, research papers, contracts, or technical documentation. 
+            All responses are synthesized using deterministic vector similarity search and strictly grounded in your uploaded files with zero hallucination.
+          </p>
+
+          <!-- Suggested Prompt Starter Pills -->
+          <div class="suggested-prompts-container">
+            <div class="suggested-title">
+              <i class="fa-solid fa-lightbulb"></i> Suggested Questions to Try:
+            </div>
+            <div class="prompts-grid" id="suggestedPromptsGrid">
+              <button class="prompt-chip" data-prompt="What are the main findings and conclusions summarized in the uploaded document?">
+                <span>"What are the main findings and conclusions in the document?"</span>
+              </button>
+              <button class="prompt-chip" data-prompt="Summarize the key requirements, compliance criteria, and deadlines.">
+                <span>"Summarize key requirements and compliance criteria."</span>
+              </button>
+              <button class="prompt-chip" data-prompt="Extract the critical metrics, quantitative statistics, and performance indicators.">
+                <span>"Extract critical metrics, statistics, and figures."</span>
+              </button>
+              <button class="prompt-chip" data-prompt="Compare the pros, cons, and recommendations proposed in the report.">
+                <span>"Compare the pros, cons, and recommendations."</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat Messages Stream -->
+        <div class="messages-stream" id="messagesStream"></div>
+
+        <!-- Typing / Generation Loading State -->
+        <div class="typing-indicator-container hidden" id="typingIndicator">
+          <div class="assistant-avatar">
+            <i class="fa-solid fa-brain-circuit"></i>
+          </div>
+          <div class="typing-bubble">
+            <div class="typing-dots">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <span class="typing-label">DocuIntel is retrieving chunks & generating grounded answer...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Input Area -->
+      <div class="chat-input-wrapper">
+        <form class="chat-form" id="chatForm">
+          <div class="input-actions-left">
+            <button type="button" class="btn-input-action" id="btnQuickUpload" title="Upload Document">
+              <i class="fa-solid fa-paperclip"></i>
+            </button>
+          </div>
+          <textarea 
+            id="chatInput" 
+            class="chat-textarea" 
+            placeholder="Ask a question about your uploaded documents (Press Enter to send, Shift+Enter for new line)..."
+            rows="1"
+          ></textarea>
+          <div class="input-actions-right">
+            <button type="submit" class="btn-send" id="btnSendMessage" title="Send Question">
+              <i class="fa-solid fa-paper-plane"></i>
+            </button>
+          </div>
+        </form>
+        <div class="chat-footer-disclaimer">
+          <i class="fa-solid fa-circle-check"></i> Strict RAG Mode: Answers are generated exclusively from verified document chunks with citation references.
+        </div>
+      </div>
+
+    </main>
+
+    <!-- ============================================================== -->
+    <!-- 3. RIGHT PANEL: KNOWLEDGE BASE & SOURCE CITATIONS              -->
+    <!-- ============================================================== -->
+    <aside class="sidebar-right" id="sidebarRight">
+      
+      <!-- Panel Header Tabs -->
+      <div class="right-panel-tabs">
+        <button class="panel-tab active" id="tabDocuments">
+          <i class="fa-solid fa-folder-tree"></i> Documents (<span id="panelDocCount">0</span>)
+        </button>
+        <button class="panel-tab" id="tabSources">
+          <i class="fa-solid fa-quote-left"></i> Evidence
+        </button>
+      </div>
+
+      <!-- Documents View Content -->
+      <div class="tab-content active" id="contentDocuments">
+        
+        <!-- Knowledge Base Quick Stats -->
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-label">Documents</div>
+            <div class="metric-value" id="statDocCount">0</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Total Chunks</div>
+            <div class="metric-value" id="statChunkCount">0</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Vector DB</div>
+            <div class="metric-value status-online">ChromaDB</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Embeddings</div>
+            <div class="metric-value">MiniLM-L6</div>
+          </div>
+        </div>
+
+        <div class="section-subheading d-flex-between">
+          <span>INDEXED REPOSITORY</span>
+          <button id="btnRefreshDocs" class="btn-icon-subtle" title="Refresh list">
+            <i class="fa-solid fa-arrows-rotate"></i>
+          </button>
+        </div>
+
+        <!-- Document List Container -->
+        <div class="documents-list" id="documentsList">
+          <div class="empty-docs-state" id="emptyDocsState">
+            <i class="fa-solid fa-file-circle-question"></i>
+            <p>No documents uploaded yet.</p>
+            <span>Upload PDF, DOCX, or TXT to build your vector knowledge base.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Source Citations Inspector Content -->
+      <div class="tab-content" id="contentSources">
+        <div class="sources-panel-header">
+          <h4>Retrieved Context Snippets</h4>
+          <p>Verified semantic matches used to generate the current answer</p>
+        </div>
+        <div class="sources-list" id="sourcesInspectorList">
+          <div class="empty-sources-state" id="emptySourcesState">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <p>No query executed yet.</p>
+            <span>Ask a question in chat to inspect retrieved chunks and similarity scores.</span>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- MODALS & OVERLAYS                                              -->
+  <!-- ============================================================== -->
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay hidden" id="modalSettings">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-sliders"></i> Engine Configuration & Credentials</h3>
+        <button class="btn-close-modal" id="btnCloseSettings">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <div class="form-group">
+          <label for="selectProvider">LLM Provider</label>
+          <select id="selectProvider" class="form-control">
+            <option value="gemini">Google Gemini (Recommended)</option>
+            <option value="openai">OpenAI (GPT-4o / GPT-4o-mini)</option>
+          </select>
+          <span class="field-hint">Choose your preferred inference backend.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="inputApiKey">API Key</label>
+          <div class="input-with-toggle">
+            <input type="password" id="inputApiKey" class="form-control" placeholder="Paste your API key here...">
+            <button type="button" class="btn-toggle-visibility" id="btnToggleKeyVis">
+              <i class="fa-solid fa-eye"></i>
+            </button>
+          </div>
+          <span class="field-hint" id="apiKeyHint">Configured securely in backend environment. You can override it here.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="inputModelName">Model Identifier</label>
+          <input type="text" id="inputModelName" class="form-control" value="gemini-1.5-flash">
+          <span class="field-hint">e.g. gemini-1.5-flash, gemini-1.5-pro, gpt-4o-mini</span>
+        </div>
+
+        <div class="system-diagnostics-box" id="systemDiagnosticsBox">
+          <div class="diag-item">
+            <span class="diag-label">Active Provider:</span>
+            <span class="diag-value" id="diagProvider">gemini</span>
+          </div>
+          <div class="diag-item">
+            <span class="diag-label">API Key Status:</span>
+            <span class="diag-value" id="diagKeyStatus">Checking...</span>
+          </div>
+          <div class="diag-item">
+            <span class="diag-label">ChromaDB Store:</span>
+            <span class="diag-value" id="diagStorage">data/chroma_db</span>
+          </div>
+          <div class="diag-item">
+            <span class="diag-label">Vector Dimension:</span>
+            <span class="diag-value">384 (Cosine Distance)</span>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="btnCancelSettings">Cancel</button>
+        <button class="btn btn-primary" id="btnSaveSettings">Save Configuration</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- About Project Modal -->
+  <div class="modal-overlay hidden" id="modalAbout">
+    <div class="modal-card modal-large">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-diagram-project"></i> About DocuIntel RAG Platform</h3>
+        <button class="btn-close-modal" id="btnCloseAbout">&times;</button>
+      </div>
+      <div class="modal-body about-content">
+        <h4>Architecture Overview</h4>
+        <p>
+          DocuIntel AI is a production-grade <strong>Retrieval-Augmented Generation (RAG)</strong> document intelligence solution. 
+          Rather than relying on closed-model parametric memory, it executes vector-grounded context injection to eliminate hallucinations.
+        </p>
+
+        <div class="arch-flow-diagram">
+          <div class="flow-step">
+            <div class="step-num">1</div>
+            <div class="step-title">Ingestion</div>
+            <div class="step-desc">PDF (PyPDF), DOCX (python-docx), TXT</div>
+          </div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">
+            <div class="step-num">2</div>
+            <div class="step-title">Chunking</div>
+            <div class="step-desc">Recursive splitting with 150-char overlap</div>
+          </div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">
+            <div class="step-num">3</div>
+            <div class="step-title">Embedding</div>
+            <div class="step-desc">MiniLM-L6-v2 vector representations</div>
+          </div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">
+            <div class="step-num">4</div>
+            <div class="step-title">ChromaDB</div>
+            <div class="step-desc">Persistent HNSW cosine index</div>
+          </div>
+          <div class="flow-arrow">&rarr;</div>
+          <div class="flow-step">
+            <div class="step-num">5</div>
+            <div class="step-title">LLM Grounding</div>
+            <div class="step-desc">Gemini / GPT-4o with Few-Shot Refusal</div>
+          </div>
+        </div>
+
+        <h4>Key Engineering Safeguards</h4>
+        <ul>
+          <li><strong>Deterministic Refusal</strong>: When semantic similarity falls below the relevance threshold, the AI explicitly reports unmentioned facts rather than guessing.</li>
+          <li><strong>Source Attribution</strong>: Every retrieved chunk logs the file name, page number, and cosine relevance score.</li>
+          <li><strong>Duplicate Immunity</strong>: Duplicate file uploads are caught and flagged to prevent vector store pollution.</li>
+        </ul>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="btnDismissAbout">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Application Logic -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

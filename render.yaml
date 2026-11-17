@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: docuintel-rag-chatbot
+    env: python
+    region: oregon
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app.main:app -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT --timeout 120
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-1.5-flash
+      - key: EMBEDDING_PROVIDER
+        value: local
+      - key: EMBEDDING_MODEL_NAME
+        value: sentence-transformers/all-MiniLM-L6-v2
+      - key: CHUNK_SIZE
+        value: 800
+      - key: CHUNK_OVERLAP
+        value: 150
+      - key: TOP_K_RETRIEVAL
+        value: 4
+      - key: SIMILARITY_THRESHOLD
+        value: 0.25
+    disk:
+      name: docuintel-data
+      mountPath: /app/data
+      sizeGB: 5

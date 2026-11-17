@@ -1,0 +1,25 @@
+GLOBAL ENTERPRISE ARTIFICIAL INTELLIGENCE & DATA SECURITY POLICY
+Document Version: 2.4 | Effective Date: January 15, 2024
+Author: Corporate Information Security Office (CISO)
+
+1. PURPOSE AND APPLICABILITY
+This document sets the mandatory governance and technical standards for designing, deploying, and consuming Artificial Intelligence (AI) and Machine Learning (ML) systems across all business divisions. This policy applies to all full-time employees, contractors, and third-party vendors.
+
+2. DATA CLASSIFICATION AND TRAINING RESTRICTIONS
+Customer Personally Identifiable Information (PII), protected health data, and financial credentials must never be inputted into public, unvetted LLM consumer applications.
+All internal documents classified as "Confidential" or "Restricted" must be processed exclusively through zero-retention private enterprise API endpoints or on-premise hosted vector databases.
+Training data sets must undergo rigorous decontamination to remove PII, internal IP addresses, API secrets, and cryptographic private keys prior to fine-tuning.
+
+3. ACCESS CONTROL AND MULTI-FACTOR AUTHENTICATION
+Role-Based Access Control (RBAC) is enforced across all vector database clusters and inference endpoints.
+Multi-Factor Authentication (MFA) is strictly mandatory for all administrative access, deployment pipelines, and remote access connections.
+Passwords must be at least 14 characters in length, containing uppercase letters, numerals, and special characters, and must be rotated every 90 days.
+
+4. MODEL AUDITING, EVALUATION AND HALLUCINATION PREVENTION
+Any model deployed to production must maintain a minimum factual accuracy benchmark of 95% on internal validation benchmarks.
+All customer-facing AI responses must use Retrieval-Augmented Generation (RAG) with verifiable citation sources.
+If relevant documents do not contain the answer to a user query, the model is strictly required to decline the question rather than extrapolate.
+
+5. INCIDENT RESPONSE AND REPORTING
+Any suspected data exfiltration, prompt injection exploit, or unauthorized model fine-tuning must be reported to security-ops@enterprise.internal within 60 minutes of detection.
+Violations of this policy will result in immediate credential revocation and disciplinary review.
