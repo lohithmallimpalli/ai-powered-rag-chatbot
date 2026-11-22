@@ -1,6 +1,7 @@
 
 import json
 import logging
+import time
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
@@ -17,7 +18,6 @@ logger = logging.getLogger(__name__)
 class VectorStoreManager:
     """Manages ChromaDB with Gemini API embeddings."""
 
-    # A separate collection prevents mixing old MiniLM vectors with Gemini vectors.
     COLLECTION_NAME = "document_intelligence_rag_gemini"
     DOC_REGISTRY_FILE = "documents_registry_gemini.json"
     EMBEDDING_MODEL = "gemini-embedding-001"
@@ -55,8 +55,13 @@ class VectorStoreManager:
         self._ensure_registry()
         logger.info("Gemini embedding vector store initialized.")
 
-    def _embed_texts(self, texts: List[str], task_type: str) -> List[List[float]]:
-        """Generate embeddings using the Gemini API."""
+    def _embed_texts(
+        self,
+        texts: List[str],
+        task_type: str
+    ) -> List[List[float]]:
+        """Generate Gemini embeddings with retry handling."""
+
         if not texts:
             return []
 
@@ -65,26 +70,70 @@ class VectorStoreManager:
         for start in range(0, len(texts), self.BATCH_SIZE):
             batch = texts[start:start + self.BATCH_SIZE]
 
-            response = self.genai_client.models.embed_content(
-                model=self.EMBEDDING_MODEL,
-                contents=batch,
-                config=types.EmbedContentConfig(
-                    task_type=task_type,
-                    output_dimensionality=self.EMBEDDING_DIMENSION
-                )
-            )
+            max_attempts = 4
 
-            if not response.embeddings:
-                raise RuntimeError("Gemini returned no embeddings.")
+            for attempt in range(max_attempts):
+                try:
+                    response = self.genai_client.models.embed_content(
+                        model=self.EMBEDDING_MODEL,
+                        contents=batch,
+                        config=types.EmbedContentConfig(
+                            task_type=task_type,
+                            output_dimensionality=self.EMBEDDING_DIMENSION
+                        )
+                    )
 
-            batch_embeddings = [
-                item.values for item in response.embeddings
-            ]
+                    if not response.embeddings:
+                        raise RuntimeError(
+                            "Gemini returned no embeddings."
+                        )
 
-            if len(batch_embeddings) != len(batch):
-                raise RuntimeError("Gemini returned an unexpected number of embeddings.")
+                    batch_embeddings = [
+                        item.values for item in response.embeddings
+                    ]
 
-            all_embeddings.extend(batch_embeddings)
+                    if len(batch_embeddings) != len(batch):
+                        raise RuntimeError(
+                            "Gemini returned an unexpected number of embeddings."
+                        )
+
+                    all_embeddings.extend(batch_embeddings)
+                    break
+
+                except Exception as e:
+                    error_text = str(e).upper()
+
+                    retryable = any(
+                        code in error_text
+                        for code in (
+                            "429",
+                            "RESOURCE_EXHAUSTED",
+                            "500",
+                            "502",
+                            "503",
+                            "504"
+                        )
+                    )
+
+                    if not retryable or attempt == max_attempts - 1:
+                        logger.exception(
+                            "Gemini embedding failed for batch %s.",
+                            start // self.BATCH_SIZE + 1
+                        )
+                        raise
+
+                    wait_time = 10 * (2 ** attempt)
+
+                    logger.warning(
+                        "Gemini embedding request failed temporarily. "
+                        "Retrying in %s seconds. Attempt %s/%s. Error: %s",
+                        wait_time,
+                        attempt + 1,
+                        max_attempts,
+                        e
+                    )
+
+                    time.sleep(wait_time)
 
         return all_embeddings
 
@@ -95,8 +144,13 @@ class VectorStoreManager:
     def _load_registry(self) -> Dict[str, Any]:
         try:
             if self.registry_path.exists():
-                with open(self.registry_path, "r", encoding="utf-8") as f:
+                with open(
+                    self.registry_path,
+                    "r",
+                    encoding="utf-8"
+                ) as f:
                     return json.load(f)
+
         except Exception as e:
             logger.error("Error loading document registry: %s", e)
 
@@ -104,8 +158,18 @@ class VectorStoreManager:
 
     def _save_registry(self, data: Dict[str, Any]):
         try:
-            with open(self.registry_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+            with open(
+                self.registry_path,
+                "w",
+                encoding="utf-8"
+            ) as f:
+                json.dump(
+                    data,
+                    f,
+                    indent=2,
+                    ensure_ascii=False
+                )
+
         except Exception as e:
             logger.error("Error saving document registry: %s", e)
             raise
@@ -125,6 +189,7 @@ class VectorStoreManager:
         chunks: List[Dict[str, Any]]
     ) -> bool:
         """Embed and index document chunks using Gemini."""
+
         if not chunks:
             return False
 
@@ -169,17 +234,28 @@ class VectorStoreManager:
             return False
 
         try:
-            self.collection.delete(where={"doc_id": doc_id})
+            self.collection.delete(
+                where={"doc_id": doc_id}
+            )
+
         except Exception as e:
-            logger.warning("Chroma delete warning for %s: %s", doc_id, e)
+            logger.warning(
+                "Chroma delete warning for %s: %s",
+                doc_id,
+                e
+            )
 
         file_path_str = registry[doc_id].get("file_path")
 
         if file_path_str and Path(file_path_str).exists():
             try:
                 Path(file_path_str).unlink()
+
             except Exception as e:
-                logger.error("Error removing uploaded file: %s", e)
+                logger.error(
+                    "Error removing uploaded file: %s",
+                    e
+                )
 
         del registry[doc_id]
         self._save_registry(registry)
@@ -210,10 +286,18 @@ class VectorStoreManager:
         results = self.collection.query(
             query_embeddings=[query_embedding],
             n_results=k,
-            include=["documents", "metadatas", "distances"]
+            include=[
+                "documents",
+                "metadatas",
+                "distances"
+            ]
         )
 
-        if not results or not results.get("documents") or not results["documents"][0]:
+        if (
+            not results
+            or not results.get("documents")
+            or not results["documents"][0]
+        ):
             return []
 
         retrieved_chunks = []
@@ -229,7 +313,12 @@ class VectorStoreManager:
         )
 
         for i, document in enumerate(docs):
-            distance = distances[i] if i < len(distances) else 1.0
+            distance = (
+                distances[i]
+                if i < len(distances)
+                else 1.0
+            )
+
             similarity = max(0.0, 1.0 - distance)
 
             if similarity < threshold:
@@ -242,7 +331,10 @@ class VectorStoreManager:
                 "text": document,
                 "score": round(similarity, 4),
                 "document_id": metadata.get("doc_id", "unknown"),
-                "filename": metadata.get("filename", "Unknown Document"),
+                "filename": metadata.get(
+                    "filename",
+                    "Unknown Document"
+                ),
                 "page": metadata.get("page", 1),
                 "chunk_index": metadata.get("chunk_index", 0),
                 "file_type": metadata.get("file_type", "")
