@@ -34,7 +34,7 @@ class Settings:
     )
     GEMINI_MODEL: str = os.getenv(
         "GEMINI_MODEL",
-        "gemini-2.5-flash"
+        "gemini-3.5-flash"
     ).strip()
 
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
